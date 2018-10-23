@@ -47,17 +47,14 @@ class IndexTracker(object):
 
     def update(self):
         self.im.set_data(self.X[:, :, self.ind])
-        self.im.set_clim([0,np.max(self.X)])
-        #self.im.set_cmap('jet')
-        #self.im1.set_cmap('jet')
+        self.im.set_clim([np.min(self.X),np.max(self.X)])
         nX,nY,nZ = self.X.shape
 
         self.im1.set_data(self.Y[:, :, self.ind])
-        self.im1.set_clim([0,np.max(self.X)])
+        self.im1.set_clim([np.min(self.X),np.max(self.X)])
 
         self.im2.set_data(self.Z[:, :, self.ind])
-        self.im2.set_clim([-np.max(self.X),np.max(self.X)])
-        #self.im2.set_clim([0,1])
+        self.im2.set_clim([np.min(self.X),np.max(self.X)])
 
         self.im3.set_data(self.W[:, :, self.ind])
 
@@ -126,20 +123,15 @@ class SimpleTracker(IndexTracker):
  
     def update(self):
         self.im.set_data(self.X[:, :, self.ind])
-        self.im.set_clim([0,np.max(self.X)])
-        #self.im.set_cmap('jet')
-        #self.im1.set_cmap('jet')
+        self.im.set_clim([np.min(self.X),np.max(self.X)])
         nX,nY,nZ = self.X.shape
 
         self.im1.set_data(self.Y[:, :, self.ind*self.sliceRatio])
-        self.im1.set_clim([0,np.max(self.X)])
+        self.im1.set_clim([np.min(self.X),np.max(self.X)])
         
         picShape = [0,0]
         picShape[0] = self.X.shape
         picShape[1] = self.Y.shape 
-        #for i in range(2):
-        #    self.ax[i].set_xlim([0.4*picShape[i][0], 0.6*picShape[i][0]])
-        #    self.ax[i].set_ylim([0.4*picShape[i][1], 0.6*picShape[i][1]])
 
 
 def showSlices(X,Y,Z=None,showProduct=False):

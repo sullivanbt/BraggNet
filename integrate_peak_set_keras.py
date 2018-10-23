@@ -51,7 +51,8 @@ def getPeakMask(test_image, model):
 
 
 #Do some initial stuff for tensorflow
-model_file = 'model_keras.h5'
+#model_file = 'model_keras.h5' #First pass
+model_file = '/home/ntv/ml_peak_integration/models/model_withQMask.h5'
 model = load_model(model_file)
 
 #Load our mantid data
@@ -141,18 +142,21 @@ for runNumber in runNumbers:
             try:
                 t1 = timer()
                 box = ICCFT.getBoxFracHKL(peak, peaks_ws, MDdata, UBMatrix, peakToGet, dQ, fracHKL=0.5, dQPixel=dQPixel,  q_frame=q_frame);
+                #Get image
                 n_events = box.getNumEventsArray();
-
                 cX, cY, cZ = np.array(n_events.shape)//2
                 dX, dY, dZ = nX//2,nY//2,nZ//2
-                image = 1.0*n_events - np.median(n_events)
-                image = n_events/np.max(image)
-                image = image[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
+                n_events = n_events*qMask #Filter by peaks
+                image = n_events[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ] #crop
+                image = image/np.max(image) #Normalize
+                image = image-np.median(image[image>0]) #center intensity
+                
                 image = np.expand_dims(image, axis=3) #should be nX*nY*nZ*1
                 n_events_cropped = n_events[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
 
                 peakMask = getPeakMask(np.expand_dims(image,axis=0), model)
 
+                #Integration
                 countsInPeak = np.sum(n_events_cropped[peakMask])
                 bgIDX = ~peakMask
                 meanBG = n_events_cropped[bgIDX].mean()

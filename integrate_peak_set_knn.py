@@ -112,7 +112,7 @@ runNumbers = df['RunNumber'].unique()
 
 #Generate the strong peaks library
 #---Load 'em
-peaksDir = '/data/ml_peak_data/train/'
+peaksDir = '/data/peaks_tf/train/'
 peaksFiles = glob.glob(peaksDir+'*pkl')
 peaksLibrary = np.zeros([len(peaksFiles), 32*32*32])
 solutionLibrary = np.zeros_like(peaksLibrary)
@@ -175,7 +175,7 @@ for runNumber in runNumbers:
             except KeyboardInterrupt:
                 0/0
             except:
-                raise
+                #raise
                 print('Error with peak %i!'%peakToGet)
                
     df.to_pickle('/home/ntv/Desktop/knn_testing_%i.pkl'%runNumber)

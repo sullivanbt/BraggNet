@@ -42,10 +42,13 @@ if True:
         pathTrainSolution = TRAIN_PATH[:-1] + '_solution/'
         image = pickle.load(open(pathTrain+id_,'rb'))
         label = pickle.load(open(pathTrainSolution+id_,'rb'))
-        image = image-np.median(image)
         image = image / image.max()
+        image = image-np.median(image[image>0])
+        image/= np.std(image)
 
-        images[n,:,:,:,0] = image - image.mean()
+        #image = (image-np.mean(image[image>0]))/np.std(image)
+
+        images[n,:,:,:,0] = image
         labels[n,:,:,:,0] = label
 
     X_train = images
@@ -61,10 +64,13 @@ if True:
         pathTest = TEST_PATH
         pathTestSolution = TEST_PATH[:-1] + '_solution/'
         image = pickle.load(open(pathTest+id_,'rb'))
-        image = image / image.max()
         label = pickle.load(open(pathTestSolution+id_,'rb'))
-        image = image-np.median(image)
         image = image / image.max()
+        image = image-np.median(image[image>0])
+        image/= np.std(image)
+
+        #image = (image-np.mean(image[image>0]))/np.std(image)
+
 
         images[n,:,:,:,0] = image
         labels[n,:,:,:,0] = label
@@ -73,6 +79,27 @@ if True:
     Y_test = labels
 
     print('Done!')
+
+
+#Define a few things for lsses
+def dice_coeff(y_true, y_pred):
+    smooth = 1.
+    # Flatten
+    y_true_f = tf.reshape(y_true, [-1])
+    y_pred_f = tf.reshape(y_pred, [-1])
+    intersection = tf.reduce_sum(y_true_f * y_pred_f)
+    score = (2. * intersection + smooth) / (tf.reduce_sum(y_true_f) + tf.reduce_sum(y_pred_f) + smooth)
+    return score
+
+def dice_loss(y_true, y_pred):
+    loss = 1 - dice_coeff(y_true, y_pred)
+    return loss
+
+def bce_dice_loss(y_true, y_pred):
+    from tensorflow.python.keras import losses
+    loss = losses.binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
+    return loss
+
 
 #=============================================================================================
 #Setup the Unet in Keras using TF backend
@@ -100,10 +127,10 @@ outputs = Conv3D(1, (1,1,1), activation='sigmoid')(c4)
 
 
 model = Model(inputs=[inputs], outputs=[outputs])
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['binary_accuracy'])
 model.summary()
 
-model.fit(X_train, Y_train,epochs=50, batch_size=32, validation_split=0.1)
+model.fit(X_train, Y_train,epochs=15, validation_split=0.1)
 preds_train = model.predict(X_train, verbose=1)
 preds_test = model.predict(X_test, verbose=1)
 
@@ -119,7 +146,14 @@ thresh = threshold_otsu(Y_disp[5:-5,5:-5,5:-5])
 peakIDX = Y_disp > thresh
 blobs = measure.label(peakIDX, neighbors=4, background=False)
 peakRegionNumber = np.argmax(np.bincount(blobs.ravel())[1:])+1
-peakIDX = blobs == peakRegionNumber
+peakIDX = 1.0*(blobs == peakRegionNumber)
+
+from scipy.ndimage import convolve
+neigh_length_m=3
+convBox = 1.0*np.ones([neigh_length_m, neigh_length_m, neigh_length_m]) / neigh_length_m**3
+conv_X = convolve(X_disp, convBox)
+bgIDX = np.logical_and(peakIDX <1, conv_X != np.median(conv_X))
+peakIDX[bgIDX] = 0.5
 
 pySlice.simpleSlices(X_disp, peakIDX/peakIDX.max()*n_events.max())
 

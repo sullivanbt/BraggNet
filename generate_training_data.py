@@ -67,6 +67,7 @@ dQ = np.abs(ICCFT.getDQFracHKL(UBMatrix, frac=0.5))
 dQ[dQ>0.2]=0.2
 
 qMask = ICCFT.getHKLMask(UBMatrix, frac=0.25, dQPixel=dQPixel, dQ=dQ)
+
 peak = peaks_ws.getPeak(peakToGet)
 
 importFlag = True
@@ -122,7 +123,7 @@ for fileName in fileList:
 
 
 df = pd.DataFrame(peaks_ws.toDict())
-peakNumbersToGet = df[(df['Intens']>200) & (df['RunNumber']==df['RunNumber'].min())].sample(1500).index.values
+peakNumbersToGet = df[(df['Intens']>200) & (df['RunNumber']==df['RunNumber'].min())].index.values
 numBad = 0
 print('Starting to generate output....')
 for peakToGet in tqdm(peakNumbersToGet):
@@ -157,7 +158,7 @@ for peakToGet in tqdm(peakNumbersToGet):
         dX, dY, dZ = nVoxelsPerSide//2, nVoxelsPerSide//2, nVoxelsPerSide//2
         n_simulated = n_simulated[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
         Y_simulated = Y_simulated[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]        
-
+        qMask_simulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
         #Grab our peak shape
         peakIDX = Y_simulated/Y_simulated.max() > 0.025;
 
@@ -166,8 +167,7 @@ for peakToGet in tqdm(peakNumbersToGet):
         bgNoiseLevel = 20
         YNoise = np.random.poisson(lam=np.random.random()*bgNoiseLevel, size=n_simulated.shape)
         n_simulated = n_simulated + YNoise
-        
-
+        n_simulated = n_simulated*qMask_simulated
         
         #Expand to 64 bits
         #n_simulated = np.pad(n_simulated, [[(64-nX)//2,(64-nX)//2+nX%2],[(64-nY)//2,(64-nY)//2+nY%2],[(64-nZ)//2,(64-nZ)//2+nZ%2]],'constant',constant_values=0.)
