@@ -106,7 +106,7 @@ maxdtBinWidth = peaks_ws.getInstrument().getNumberParameter("maxDTBinWidth")[0]
 nTheta = peaks_ws.getInstrument().getIntParameter("numBinsTheta")[0]
 nPhi   = peaks_ws.getInstrument().getIntParameter("numBinsPhi")[0]
 iccFitDict = ICCFT.parseConstraints(peaks_ws)
-strongPeakParams = None
+strongPeakParams = pickle.load(open('/home/ntv/integrate/strongPeaksParams_betalac_july2018_secondxtal.pkl','rb'))
 
 # Clean the output directories
 fileList = glob.glob('/data/peaks_tf/train/*pkl')
@@ -123,10 +123,15 @@ for fileName in fileList:
 
 
 df = pd.DataFrame(peaks_ws.toDict())
-peakNumbersToGet = df[(df['Intens']>200) & (df['RunNumber']==df['RunNumber'].min())].index.values
+strongPeakNumbers = df[(df['Intens']>200)&(df['RunNumber']==df['RunNumber'].min())].index.values
+numStrongPeaks = len(strongPeakNumbers)
+weakPeakNumbers = df[(df['Intens']<200)&(df['RunNumber']==df['RunNumber'].min())].sample(numStrongPeaks).index.values
+peakNumbersToGet = np.append(strongPeakNumbers, weakPeakNumbers)
+
 numBad = 0
 print('Starting to generate output....')
-for peakToGet in tqdm(peakNumbersToGet):
+pickle.dump(qMask, open('/data/peaks_tf/qMask.pkl', 'wb'))
+for fitNumber, peakToGet in enumerate(tqdm(peakNumbersToGet)):
     try:
         peak = peaks_ws.getPeak(peakToGet);
         box = ICCFT.getBoxFracHKL(peak, peaks_ws, MDdata, UBMatrix, peakToGet, dQ, fracHKL=0.5, dQPixel=dQPixel,  q_frame=q_frame);
@@ -136,38 +141,75 @@ for peakToGet in tqdm(peakNumbersToGet):
 
         n_simulated = n_events.copy()
         Y_simulated = Y3D.copy()
+        qMask_simulated = qMask.copy()
+        
         #Rotate the peak
-        theta1, theta2, theta3 = np.random.random(3)*360
+        theta1, theta2, theta3 = (np.random.random(3)-0.5)*180
         n_simulated = rotate(n_simulated, theta1, axes=(1,0), reshape=False)
         n_simulated = rotate(n_simulated, theta2, axes=(2,0), reshape=False)
         n_simulated = rotate(n_simulated, theta3, axes=(2,1), reshape=False)
         Y_simulated = rotate(Y_simulated, theta1, axes=(1,0), reshape=False)
         Y_simulated = rotate(Y_simulated, theta2, axes=(2,0), reshape=False)
         Y_simulated = rotate(Y_simulated, theta3, axes=(2,1), reshape=False)
-
+        qMask_simulated = rotate(qMask_simulated, theta1, axes=(1,0), reshape=False)
+        qMask_simulated = rotate(qMask_simulated, theta2, axes=(2,0), reshape=False)
+        qMask_simulated = rotate(qMask_simulated, theta3, axes=(2,1), reshape=False)
         
         #We're going to downsample to 32**3 - let's just go a little off center to train mispredicted peaks
         #Downsample to 32**3
-        maxOffset = 3
+        maxOffset = 6
         nVoxelsPerSide = 32
         nX, nY, nZ = np.array(n_events.shape)
         cX, cY, cZ = np.array(n_events.shape)//2
-        cX += np.random.randint(low=-1*maxOffset,high=maxOffset)
-        cY += np.random.randint(low=-1*maxOffset,high=maxOffset)
-        cZ += np.random.randint(low=-1*maxOffset,high=maxOffset)
+        cX += np.random.randint(low=-1*maxOffset,high=maxOffset+1)
+        cY += np.random.randint(low=-1*maxOffset,high=maxOffset+1)
+        cZ += np.random.randint(low=-1*maxOffset,high=maxOffset+1)
         dX, dY, dZ = nVoxelsPerSide//2, nVoxelsPerSide//2, nVoxelsPerSide//2
-        n_simulated = n_simulated[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
-        Y_simulated = Y_simulated[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]        
-        qMask_simulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
+        
+        lowX = cX-dX
+        highX = cX+dX
+        lowY = cY-dY
+        highY = cY+dY
+        lowZ = cZ-dZ
+        highZ = cZ+dZ
+        if lowX < 0:
+            lowX = 0
+            highX = 2*dX
+        elif highX > n_simulated.shape[0]:
+            highX = n_simulated.shape[0]
+            lowX = highX - 2*dX
+        
+        if lowY < 0:
+            lowY = 0
+            highY = 2*dY
+        elif highY > n_simulated.shape[1]:
+            highY = n_simulated.shape[1]
+            lowY = highY - 2*dY
+        
+        if lowZ < 0:
+            lowZ = 0
+            highZ = 2*dZ
+        elif highZ > n_simulated.shape[2]:
+            highZ = n_simulated.shape[2]
+            lowZ = highZ - 2*dZ
+
+                         
+        n_simulated = n_simulated[lowX:highX, lowY:highY, lowZ:highZ]
+        Y_simulated = Y_simulated[lowX:highX, lowY:highY, lowZ:highZ]
+        qMask_simulated = qMask_simulated[lowX:highX, lowY:highY, lowZ:highZ]
         #Grab our peak shape
         peakIDX = Y_simulated/Y_simulated.max() > 0.025;
 
+        if n_simulated.shape != (32,32,32):
+            print('Bad shape with peak number %i'%peakToGet)
         
         #Add noise to the n_simulated
-        bgNoiseLevel = 20
-        YNoise = np.random.poisson(lam=np.random.random()*bgNoiseLevel, size=n_simulated.shape)
-        n_simulated = n_simulated + YNoise
-        n_simulated = n_simulated*qMask_simulated
+        if fitNumber < numStrongPeaks:
+            bgNoiseLevel = 20
+            YNoise = np.random.poisson(lam=np.random.random()*bgNoiseLevel, size=n_simulated.shape)
+            n_simulated = n_simulated + YNoise
+
+        n_simulated = n_simulated
         
         #Expand to 64 bits
         #n_simulated = np.pad(n_simulated, [[(64-nX)//2,(64-nX)//2+nX%2],[(64-nY)//2,(64-nY)//2+nY%2],[(64-nZ)//2,(64-nZ)//2+nZ%2]],'constant',constant_values=0.)

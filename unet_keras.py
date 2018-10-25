@@ -11,7 +11,7 @@ from skimage.filters import threshold_otsu
 from skimage import measure
 
 from keras.models import Model, load_model, save_model
-from keras.layers import Input
+from keras.layers import Input, BatchNormalization
 from keras.layers.core import Dropout
 from keras.layers.convolutional import Conv3D, Conv3DTranspose
 from keras.layers.pooling import MaxPooling3D
@@ -23,12 +23,21 @@ nX = 32
 nY = 32
 nZ = 32
 nChannels = 1
-TRAIN_PATH = '/data/peaks_tf/train/'
-TEST_PATH  = '/data/peaks_tf/test/'
+TRAIN_PATH = '/data/peaks_tf2/train/'
+TEST_PATH  = '/data/peaks_tf2/test/'
+
+#Set up the qMask
+qMask = pickle.load(open('/data/peaks_tf/qMask.pkl', 'rb'))
+cX, cY, cZ = np.array(qMask.shape)//2
+dX, dY, dZ = nX//2, nY//2, nZ//2
+qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
 
 # Get train and test IDs
 train_ids = next(os.walk(TRAIN_PATH))[2]
 test_ids = next(os.walk(TEST_PATH))[2]
+
+
+
 
 if True:
     #=============================================================================================
@@ -42,11 +51,10 @@ if True:
         pathTrainSolution = TRAIN_PATH[:-1] + '_solution/'
         image = pickle.load(open(pathTrain+id_,'rb'))
         label = pickle.load(open(pathTrainSolution+id_,'rb'))
+        image *= qMaskSimulated
+        label *= qMaskSimulated
         image = image / image.max()
-        image = image-np.median(image[image>0])
-        image/= np.std(image)
-
-        #image = (image-np.mean(image[image>0]))/np.std(image)
+        image = (image-np.mean(image[qMaskSimulated]))/np.std(image[qMaskSimulated])
 
         images[n,:,:,:,0] = image
         labels[n,:,:,:,0] = label
@@ -65,12 +73,10 @@ if True:
         pathTestSolution = TEST_PATH[:-1] + '_solution/'
         image = pickle.load(open(pathTest+id_,'rb'))
         label = pickle.load(open(pathTestSolution+id_,'rb'))
+        image *= qMaskSimulated
+        label *= qMaskSimulated
         image = image / image.max()
-        image = image-np.median(image[image>0])
-        image/= np.std(image)
-
-        #image = (image-np.mean(image[image>0]))/np.std(image)
-
+        image = (image-np.mean(image[qMaskSimulated]))/np.std(image[qMaskSimulated])
 
         images[n,:,:,:,0] = image
         labels[n,:,:,:,0] = label
@@ -104,33 +110,43 @@ def bce_dice_loss(y_true, y_pred):
 #=============================================================================================
 #Setup the Unet in Keras using TF backend
 
+activationName = 'selu'
+
 inputs = Input((nX, nY, nZ, nChannels))
-c1 = Conv3D(16, (3,3,3), activation='elu', kernel_initializer='he_normal', padding='same')(inputs)
+c1 = Conv3D(16, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(inputs)
 c1 = Dropout(0.1)(c1)
-c1 = Conv3D(16, (3,3,3), activation='elu', kernel_initializer='he_normal', padding='same')(c1)
+#c1 = Conv3D(16, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(c1)
+c1 = Conv3D(16, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(c1)
 p1 = MaxPooling3D((2,2,2))(c1)
 
-c2 = Conv3D(32, (3,3,3), activation='elu', kernel_initializer='he_normal', padding='same')(p1)
+c2 = Conv3D(32, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(p1)
 c2 = Dropout(0.1)(c2)
-c2 = Conv3D(32, (3,3,3), activation='elu', kernel_initializer='he_normal', padding='same')(c2)
+#c2 = Conv3D(32, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(c2)
+c2 = Conv3D(32, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(c2)
 
 
 u3 = Conv3DTranspose(16, (2,2,2), strides=(1,1,1), padding='same')(c2)
-u3 = concatenate([u3, c2])
-c3 = Conv3D(16, (3,3,3), activation='elu',kernel_initializer='he_normal', padding='same')(u3)
+#u3 = concatenate([u3, c2])
+u3 = concatenate([c2, u3])
+c3 = Conv3D(16, (3,3,3), activation=activationName,kernel_initializer='he_normal', padding='same')(u3)
+#c3 = Conv3D(16, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(c3)
+#c3 = Conv3D(16, (3,3,3), activation=activationName, kernel_initializer='he_normal', padding='same')(c3)
 
 u4 = Conv3DTranspose(16, (2,2,2), strides=(2,2,2), padding='same')(c3)
-u4 = concatenate([u4, c1])
-c4 = Conv3D(16, (3,3,3), activation='elu',kernel_initializer='he_normal', padding='same')(u4)
+#u4 = concatenate([u4, c1])
+u4 = concatenate([c1, u4])
+c4 = Conv3D(16, (3,3,3), activation=activationName ,kernel_initializer='he_normal', padding='same')(u4)
+#c4 = Conv3D(16, (3,3,3), activation=activationName ,kernel_initializer='he_normal', padding='same')(c4)
+#c4 = Conv3D(16, (3,3,3), activation=activationName ,kernel_initializer='he_normal', padding='same')(c4)
 
 outputs = Conv3D(1, (1,1,1), activation='sigmoid')(c4)
 
 
 model = Model(inputs=[inputs], outputs=[outputs])
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['binary_accuracy'])
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[dice_coeff])
 model.summary()
 
-model.fit(X_train, Y_train,epochs=15, validation_split=0.1)
+model.fit(X_train, Y_train, epochs=100, validation_split=0.1)
 preds_train = model.predict(X_train, verbose=1)
 preds_test = model.predict(X_test, verbose=1)
 
