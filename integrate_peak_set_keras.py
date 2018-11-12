@@ -15,6 +15,12 @@ from timeit import default_timer as timer
 import sys
 import pandas as pd
 from tqdm import tqdm
+
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.15
+set_session(tf.Session(config=config))
 from keras.models import Model, load_model, save_model
 
 popList = []
@@ -40,6 +46,7 @@ def sigmoid(x):
     return 1. / (1. + np.exp(-x))
 
 
+'''
 def getPeakMask(test_image, model):
     test_image = model.predict(test_image).squeeze()
     thresh = threshold_otsu(test_image[5:-5,5:-5,5:-5])
@@ -48,9 +55,34 @@ def getPeakMask(test_image, model):
     peakRegionNumber = np.argmax(np.bincount(blobs[5:-5,5:-5,5:-5].ravel())[1:])+1
     peakIDX = blobs == peakRegionNumber
     return peakIDX
+'''
 
+def getPeakMask(test_image_input, model, thresh=0.15, dEdge=8):
+    if thresh < 0.: return np.zeros((test_image_input.shape[1:3]),dtype=np.bool)
+    try:
+        cIM, cX, cY, cZ, cC = np.array(test_image_input.shape)//2
+        test_image = model.predict(test_image_input).squeeze()
+        peakIDX = test_image > thresh
+        blobs = measure.label(peakIDX, neighbors=4, background=False)
+        binCounts = np.bincount(blobs[dEdge:-1*dEdge,dEdge:-1*dEdge,dEdge:-1*dEdge].ravel())[1:]
+        peakRegionNumber = np.argmax(binCounts)+1
+        peakIDX = blobs == peakRegionNumber
+    except:
+        #raise
+        return(getPeakMask(test_image_input, model, thresh=thresh-0.1, dEdge=dEdge))
+    return peakIDX
 
 #Define a few things for lsses
+def mean_iou(y_true, y_pred):
+    smooth = tf.convert_to_tensor(1.)
+    # Flatten
+    y_true_f = tf.reshape(tf.greater(y_true,0.3), [-1])
+    y_pred_f = tf.reshape(tf.greater(y_pred,0.3), [-1])
+    intersection = tf.reduce_sum(tf.cast(tf.logical_and(y_true_f, y_pred_f),tf.float32))
+    union =        tf.reduce_sum(tf.cast( tf.logical_or(y_true_f, y_pred_f),tf.float32))
+    score = (intersection + smooth) / (union + smooth)
+    return score
+
 def dice_coeff(y_true, y_pred):
     smooth = 1.
     # Flatten
@@ -72,8 +104,11 @@ def bce_dice_loss(y_true, y_pred):
 
 #Do some initial stuff for tensorflow
 #model_file = 'model_keras.h5' #First pass
-model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_selu.h5'
-model = load_model(model_file, custom_objects={'dice_coeff':dice_coeff})
+model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_relu_halfrot_strongonly_0p5dropout.h5'
+#model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_relu_halfrot_allruns_limitNoise_normalizeonly.h5'
+#model = load_model(model_file, custom_objects={'dice_coeff':dice_coeff})
+model = load_model(model_file, custom_objects={'bce_dice_loss':bce_dice_loss, 'dice_coeff':dice_coeff, 'dice_loss':dice_loss,
+                                               'mean_iou':mean_iou})
 
 #Load our mantid data
 
@@ -88,8 +123,6 @@ q_frame = 'lab'
 
 
 # Some parameters
-peakToGet = 3 #Arbitrary - just has to be less than the number of peaks
-removeEdges = False 
 importPeaks = True
 print('Loading peaks_ws')
 for ws in mtd.getObjectNames():
@@ -107,41 +140,24 @@ dQ = np.abs(ICCFT.getDQFracHKL(UBMatrix, frac=0.5))
 dQ[dQ>0.2]=0.2
 
 
-peak = peaks_ws.getPeak(peakToGet)
-
-print('Loading MDdata.  This may take a few minutes.')
-importFlag = True
-for ws in mtd.getObjectNames():
-    if mtd[ws].getComment() == 'BSGETBOX%i'%peak.getRunNumber():
-        print '   Using already loaded MDdata'
-        MDdata = mtd[ws]
-        importFlag = False
-        break
-if importFlag:
-    try:
-        fileName = nxsTemplate%peak.getRunNumber()
-    except:
-        fileName = nxsTemplate.format(0, peak.getRunNumber())
-    MDdata = ICCFT.getSample(peak.getRunNumber(), DetCalFile, workDir, fileName, q_frame=q_frame)
-    MDdata.setComment('BSGETBOX%i'%peak.getRunNumber())
-
-
-print('Which Peak?')
-peakToGet = int(input())
 df = pd.DataFrame(peaks_ws.toDict())
 df['IntensML'] = np.zeros(len(df))
 df['SigIntML'] = np.ones(len(df),dtype=float)
 df['meanBG'] = np.zeros(len(df))
 df['numVoxelsInPeak'] = np.zeros(len(df))
-runNumbers = df['RunNumber'].unique()
 
+if len(sys.argv) == 1:
+    runNumbers = df['RunNumber'].unique()
+else:
+    runNumbers = map(int,sys.argv[1:])
+print('Integrating run numbers:', runNumbers)
 qMask = pickle.load(open('/data/peaks_tf/qMask.pkl', 'rb'))
 cX, cY, cZ = np.array(qMask.shape)//2
 dX, dY, dZ = nX//2, nY//2, nZ//2
 qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
 
 for runNumber in runNumbers:
-    print('Run Number %i'%runNumber)
+    print('Current Run Number %i'%runNumber)
 
     #--imports new MDdata
     importFlag = True
@@ -153,8 +169,12 @@ for runNumber in runNumbers:
             break
     if importFlag:
         fileName = nxsTemplate%runNumber
-        MDdata = ICCFT.getSample(peak.getRunNumber(), DetCalFile, workDir, fileName, q_frame=q_frame)
-        MDdata.setComment('BSGETBOX%i'%peak.getRunNumber())
+        MDdata = ICCFT.getSample(runNumber, DetCalFile, workDir, fileName, q_frame=q_frame)
+        MDdata.setComment('BSGETBOX%i'%runNumber)
+
+    #Need for detecting detector edges
+    neigh_length_m = 3
+    convBox = 1.0*np.ones([neigh_length_m, neigh_length_m,neigh_length_m]) / neigh_length_m**3
 
     #---Determine which peaks to try and then run them.
     peakNumbersToGet = df[(df['RunNumber']==runNumber)].index.values
@@ -176,14 +196,19 @@ for runNumber in runNumbers:
                 image = np.expand_dims(image, axis=3)
                 image = np.expand_dims(image, axis=0)
                 peakMask = getPeakMask(image, model)
+                if np.sum(peakMask) == 0:
+                    print('Peak %i has zero pixels!'%peakToGet)
 
                 #Integration
                 n_events_cropped = n_events[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
                 countsInPeak = np.sum(n_events_cropped[peakMask])
-                bgIDX = ~peakMask & qMaskSimulated
+
+                conv_n_events_cropped = convolve(n_events_cropped,convBox)
+                bgIDX = reduce(np.logical_and, [~peakMask, qMaskSimulated, conv_n_events_cropped > 0])
                 meanBG = n_events_cropped[bgIDX].mean()
-                intensity = countsInPeak - meanBG*np.sum(peakMask)
-                sigma = np.sqrt(countsInPeak+meanBG*np.sum(peakMask))
+                bgCountsInPeak = meanBG*np.sum(peakMask)
+                intensity = countsInPeak - bgCountsInPeak
+                sigma = np.sqrt(countsInPeak+bgCountsInPeak)
                 
                 t2 = timer()
                 df.at[peakToGet,'IntensML'] = intensity
@@ -199,7 +224,8 @@ for runNumber in runNumbers:
                 #raise
                 print('Error with peak %i!'%peakToGet)
                
-    df.to_pickle('/home/ntv/Desktop/ml_results/unet_testing_%i_selu.pkl'%runNumber)
+    #df.to_pickle('/home/ntv/Desktop/ml_results/unet_testing_%i_relu_halfrot_strongOnly_0p5dropout.pkl'%runNumber)
+    df.to_pickle('/home/ntv/Desktop/ml_results/unet_testing_%i_relu_halfrot_strongOnly_allRuns_limitNoise_normalizeOnly.pkl'%runNumber)
 
     
 
