@@ -81,28 +81,8 @@ UBMatrix = peaks_ws.sample().getOrientedLattice().getUB()
 dQ = np.abs(ICCFT.getDQFracHKL(UBMatrix, frac=0.5))
 dQ[dQ>0.2]=0.2
 
-qMask = ICCFT.getHKLMask(UBMatrix, frac=0.25, dQPixel=dQPixel, dQ=dQ)
-peak = peaks_ws.getPeak(peakToGet)
-
-print('Loading MDdata.  This may take a few minutes.')
-importFlag = True
-for ws in mtd.getObjectNames():
-    if mtd[ws].getComment() == 'BSGETBOX%i'%peak.getRunNumber():
-        print '   Using already loaded MDdata'
-        MDdata = mtd[ws]
-        importFlag = False
-        break
-if importFlag:
-    try:
-        fileName = nxsTemplate%peak.getRunNumber()
-    except:
-        fileName = nxsTemplate.format(0, peak.getRunNumber())
-    MDdata = ICCFT.getSample(peak.getRunNumber(), DetCalFile, workDir, fileName, q_frame=q_frame)
-    MDdata.setComment('BSGETBOX%i'%peak.getRunNumber())
-
 
 print('Which Peak?')
-peakToGet = int(input())
 df = pd.DataFrame(peaks_ws.toDict())
 df['IntensML'] = np.zeros(len(df))
 df['SigIntML'] = np.ones(len(df),dtype=float)
@@ -111,16 +91,36 @@ df['numVoxelsInPeak'] = np.zeros(len(df))
 runNumbers = df['RunNumber'].unique()
 
 #Generate the strong peaks library
+# First, the qMask
+qMask = pickle.load(open('/data/peaks_tf/qMask.pkl', 'rb'))
+cX, cY, cZ = np.array(qMask.shape)//2
+dX, dY, dZ = nX//2, nY//2, nZ//2
+qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
+
 #---Load 'em
-peaksDir = '/data/peaks_tf/train/'
+#peaksDir = '/data/peaks_tf/train/'
+peaksDir = '/data/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff/train/'
 peaksFiles = glob.glob(peaksDir+'*pkl')
-peaksLibrary = np.zeros([len(peaksFiles), 32*32*32])
-solutionLibrary = np.zeros_like(peaksLibrary)
+peaksLibrary = np.zeros([len(peaksFiles), np.sum(qMaskSimulated)])
+solutionLibrary = np.zeros([len(peaksFiles),32*32*32])
 for i, peakFile in tqdm(enumerate(peaksFiles),total=len(peaksFiles)):
     solutionFile = peakFile.replace('train', 'train_solution')
-    peaksLibrary[i] = pickle.load(open(peakFile)).ravel()
-    solutionLibrary[i] = pickle.load(open(solutionFile)).ravel()
+    image = pickle.load(open(peakFile,'rb'))
+    label = pickle.load(open(solutionFile,'rb'))
+    image *= qMaskSimulated
+    image = image / image.max()
+    image = (image-np.mean(image[qMaskSimulated]))/np.std(image[qMaskSimulated])
+    peaksLibrary[i] = image[qMaskSimulated]
+    solutionLibrary[i] = label.ravel()
 solutionLibrary = solutionLibrary.astype(np.bool)
+
+
+if len(sys.argv) == 1:
+    runNumbers = df['RunNumber'].unique()
+else:
+    runNumbers = map(int,sys.argv[1:])
+print('Integrating run numbers:', runNumbers)
+
 
 for runNumber in runNumbers:
     print('Run Number %i'%runNumber)
@@ -135,11 +135,11 @@ for runNumber in runNumbers:
             break
     if importFlag:
         fileName = nxsTemplate%runNumber
-        MDdata = ICCFT.getSample(peak.getRunNumber(), DetCalFile, workDir, fileName, q_frame=q_frame)
-        MDdata.setComment('BSGETBOX%i'%peak.getRunNumber())
+        MDdata = ICCFT.getSample(runNumber, DetCalFile, workDir, fileName, q_frame=q_frame)
+        MDdata.setComment('BSGETBOX%i'%runNumber)
 
     #---Determine which peaks to try and then run them.
-    peakNumbersToGet = df[(df['RunNumber']==runNumber)].index.values
+    peakNumbersToGet = df[(df['RunNumber']==runNumber)&(df['DSpacing']>1.5)].index.values
 
     for peakToGet in tqdm(peakNumbersToGet):
         peak = peaks_ws.getPeak(peakToGet);
@@ -151,13 +151,15 @@ for runNumber in runNumbers:
 
                 cX, cY, cZ = np.array(n_events.shape)//2
                 dX, dY, dZ = nX//2,nY//2,nZ//2
-                image = 1.0*n_events - np.median(n_events)
                 image = n_events/np.max(image)
                 image = image[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
+                image *= qMaskSimulated
+                image = image / image.max()
+                image = (image-np.mean(image[qMaskSimulated]))/np.std(image[qMaskSimulated])
                 image = np.expand_dims(image, axis=3) #should be nX*nY*nZ*1
                 n_events_cropped = n_events[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
 
-                peakMask = getPeakMask(n_events_cropped.ravel(), peaksLibrary, solutionLibrary)
+                peakMask = getPeakMask(n_events_cropped[qMaskSimulated], peaksLibrary, solutionLibrary)
 
                 countsInPeak = np.sum(n_events_cropped[peakMask])
                 bgIDX = ~peakMask
@@ -178,7 +180,7 @@ for runNumber in runNumbers:
                 #raise
                 print('Error with peak %i!'%peakToGet)
                
-    df.to_pickle('/home/ntv/Desktop/knn_testing_%i.pkl'%runNumber)
+    df.to_pickle('/home/ntv/Desktop/ml_results/knn_testing_%i.pkl'%runNumber)
 
     
 

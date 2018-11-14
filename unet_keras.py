@@ -18,8 +18,8 @@ reload(mltools)
 #Initialization
 np.random.seed = 42
 #baseDirectory = '/data/peaks_tf_hklTesting/'
-#baseDirectory = '/data/peaks_tf_mltoolstest/'
-baseDirectory = '/data/peaks_tf_halfRot_strongOnly_allSets_limitedNoise/'
+baseDirectory = '/data/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_2/'
+#baseDirectory = '/data/peaks_tf_halfRot_strongOnly_allSets_limitedNoise/'
 
 useQMask = True
 #=============================================================================================

@@ -49,7 +49,7 @@ nChannels = 1
 #trainedOnHKL = False; thresh=0.15
 #model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_relu_halfrot_allruns_limitNoise_hklFull.h5'
 #trainedOnHKL = True; thresh=0.15
-model_file = '/home/ntv/ml_peak_integration/models/model_mltools_halfRot_strongOnly_allSets_limitedNoise_bigger_withbn_3.h5'
+model_file = '/home/ntv/ml_peak_integration/models/model_mltools_halfRot_strongOnly_allSets_limitedNoise_bigger_withbn_0p025Cutoff.h5'
 trainedOnHKL = False; thresh=0.15
 model = load_model(model_file, custom_objects={'bce_dice_loss':mltools.bce_dice_loss, 'dice_coeff':mltools.dice_coeff, 
                                                'dice_loss':mltools.dice_loss, 'mean_iou':mltools.mean_iou})
@@ -155,7 +155,7 @@ for runNumber in runNumbers:
                 print('Error with peak %i!'%peakToGet)
                
     #df.to_pickle('/home/ntv/Desktop/ml_results/unet_testing_%i_relu_halfrot_strongOnly_0p5dropout_withmltools_noEdgeDetection.pkl'%runNumber)
-    df.to_pickle('/home/ntv/Desktop/ml_results/mltools_halfRot_strongOnly_allSets_limitedNoise_%i_bigger_withbn_3.pkl'%runNumber)
+    df.to_pickle('/home/ntv/Desktop/ml_results/mltools_halfRot_strongOnly_allSets_limitedNoise_%i_bigger_withbn_0p025Cutoff.pkl'%runNumber)
 
     
 

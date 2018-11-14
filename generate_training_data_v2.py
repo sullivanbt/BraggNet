@@ -63,6 +63,46 @@ if importPeaks:
     peaks_ws = LoadIsawPeaks(Filename = peaksFile)
     peaks_ws.setComment(peaksFile)
 
+
+
+#baseDirectory = '/data/peaks_tf_halfRot_strongOnly_allSets_limitedNoise/'
+baseDirectory = '/data/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_2/'
+
+
+if len(sys.argv) == 1:
+    runNumbersToAdd = range(9113,9117+1)
+    cleanDirectories = True
+else:
+    runNumbersToAdd = map(int,sys.argv[1:])
+    if 9113 in runNumbersToAdd:
+        cleanDirectories = True
+    else:
+        cleanDirectories = False
+print('Will generate data from runs %s'%(str(runNumbersToAdd)))
+
+
+if not os.path.exists(baseDirectory):
+    print('Creating path %s'%(baseDirectory))
+    os.mkdir(baseDirectory)
+for pathType in ['train/', 'train_solution/', 'test/', 'test_solution/']:
+    if not os.path.exists(baseDirectory+pathType):
+        print('Creating path %s'%(baseDirectory+pathType))
+        os.mkdir(baseDirectory+pathType)
+if cleanDirectories:
+    # Clean the output directories
+    fileList = glob.glob(baseDirectory+'train/*pkl')
+    fileList += glob.glob(baseDirectory+'train_solution/*pkl')
+    fileList += glob.glob(baseDirectory+'test/*pkl')
+    fileList += glob.glob(baseDirectory+'test_solution/*pkl')
+    print 'Removing %i files'%len(fileList)
+    for fileName in fileList:
+        try:
+            os.remove(fileName)
+        except:
+            print('Could not remove %s'%fileName)
+
+
+
 LoadIsawUB(InputWorkspace=peaks_ws, FileName=UBFile)
 UBMatrix = peaks_ws.sample().getOrientedLattice().getUB()
 dQ = np.abs(ICCFT.getDQFracHKL(UBMatrix, frac=0.5))
@@ -72,20 +112,6 @@ qMask = ICCFT.getHKLMask(UBMatrix, frac=0.25, dQPixel=dQPixel, dQ=dQ)
 
 peak = peaks_ws.getPeak(peakToGet)
 
-importFlag = True
-for ws in mtd.getObjectNames():
-    if mtd[ws].getComment() == 'BSGETBOX%i'%peak.getRunNumber():
-        print '   Using already loaded MDdata'
-        MDdata = mtd[ws]
-        importFlag = False
-        break
-if importFlag:
-    try:
-        fileName = nxsTemplate%peak.getRunNumber()
-    except:
-        fileName = nxsTemplate.format(0, peak.getRunNumber())
-    MDdata = ICCFT.getSample(peak.getRunNumber(), DetCalFile, workDir, fileName, q_frame=q_frame)
-    MDdata.setComment('BSGETBOX%i'%peak.getRunNumber())
 
 SetInstrumentParameter(Workspace='peaks_ws', ParameterName='fitConvolvedPeak', ParameterType='Bool', Value='False')
 SetInstrumentParameter(Workspace='peaks_ws', ParameterName='sigX0Scale', ParameterType='Number', Value='1.0')
@@ -110,36 +136,18 @@ nPhi   = peaks_ws.getInstrument().getIntParameter("numBinsPhi")[0]
 iccFitDict = ICCFT.parseConstraints(peaks_ws)
 strongPeakParams = pickle.load(open('/home/ntv/integrate/strongPeaksParams_betalac_july2018_secondxtal.pkl','rb'))
 
-#baseDirectory = '/data/peaks_tf_halfRot_strongOnly_allSets_limitedNoise/'
-baseDirectory = '/data/peaks_tf_mltoolstest_limitedNoise/'
 
-if not os.path.exists(baseDirectory):
-    print('Creating path %s'%(baseDirectory))
-    os.mkdir(baseDirectory)
-for pathType in ['train/', 'train_solution/', 'test/', 'test_solution/']:
-    if not os.path.exists(baseDirectory+pathType):
-        print('Creating path %s'%(baseDirectory+pathType))
-        os.mkdir(baseDirectory+pathType)
-# Clean the output directories
-fileList = glob.glob(baseDirectory+'train/*pkl')
-fileList += glob.glob(baseDirectory+'train_solution/*pkl')
-fileList += glob.glob(baseDirectory+'test/*pkl')
-fileList += glob.glob(baseDirectory+'test_solution/*pkl')
-print 'Removing %i files'%len(fileList)
-for fileName in fileList:
-    try:
-        os.remove(fileName)
-    except:
-        print('Could not remove %s'%fileName)
 
 df = pd.read_pickle('/home/ntv/Desktop/beta_lac_highres_df.pkl')
 numBad = 0
 print('Starting to generate output....')
 pickle.dump(qMask, open(baseDirectory+'qMask.pkl', 'wb'))
 paramList = []
-runNumbersToAdd = range(9113,9117+1)
+
+peakThreshold = 0.025
 
 for runNumber in runNumbersToAdd:
+    print('   Starting run %i'%(runNumber))
     goodIDX = (df['chiSq'] < 5.0) & (df['chiSq'] > 0.50) & (df['chiSq3d']<4) #& (df['notOutlier']) &  (df['Intens3d'] > -1.*np.inf) 
     dEdge = 1
     edgeIDX = (df['Row'] <= dEdge) | (df['Row'] >= 255-dEdge) | (df['Col'] <= dEdge) | (df['Col'] >= 255-dEdge)
@@ -171,13 +179,14 @@ for runNumber in runNumbersToAdd:
             peak = peaks_ws.getPeak(peakToGet);
             box = ICCFT.getBoxFracHKL(peak, peaks_ws, MDdata, UBMatrix, peakToGet, dQ, dQPixel=dQPixel,  q_frame=q_frame);
             Y3D = mltools.reconstructY3D(box, df, peak, peakToGet)
-            
-            # Set the simulated peaks
-            reload(mltools)            
-            n_simulated, Y_simulated, peakDict = mltools.generateTrainingPeak(peak, box, Y3D, peakDict, 
-                                                 UBMatrix, rebinHKL=False, addNoise=True)
 
-            peakIDX = Y_simulated/Y_simulated.max() > 0.005;
+            # Set the simulated peaks
+            reload(mltools)     
+            n_simulated, Y_simulated, peakDict = mltools.generateTrainingPeak(peak, box, Y3D, peakDict, 
+                                                 UBMatrix, rebinHKL=False, addNoise=True, peakThreshold=peakThreshold,
+                                                 qMask=qMask)
+
+            peakIDX = Y_simulated/Y_simulated.max() > peakThreshold;
             
             # Record a few extra things so we can analyze the training peaks if we want
             peakDict['PeakNumber'] = peakToGet
@@ -185,9 +194,8 @@ for runNumber in runNumbersToAdd:
             peakDict['SigIng'] = peak.getSigmaIntensity()
             peakDict['theta'] = peak.getScattering()*0.5
             peakDict['numVoxelsSimulated'] = peakIDX.sum()
-            peakDict['numVoxelRaw'] = (Y3D/Y3D.max() > 0.005).sum()
-            peakDict['maxEvents'] = n_simulated[peakIDX].max()
-            peakDict['bgEvents'] = n_simulated[~peakIDX].mean()
+            peakDict['numVoxelRaw'] = (Y3D/Y3D.max() > peakThreshold).sum()
+
             
             paramList.append(peakDict)
             #Write the answer
@@ -204,4 +212,4 @@ for runNumber in runNumbersToAdd:
             #raise
             print('Error generating training set for peak %i'%peakToGet)
             numBad += 1
-pickle.dump(paramList, open(baseDirectory+'simulated_peak_params.pkl', 'wb'))
+    pickle.dump(paramList, open(baseDirectory+'simulated_peak_params_%i.pkl'%runNumber, 'wb'))

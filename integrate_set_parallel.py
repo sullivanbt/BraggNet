@@ -7,7 +7,8 @@ import pickle
 
 
 python = 'python'
-reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_hkl.py'
+#reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_hkl.py'
+reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_knn.py'
 run_nums = [9113, 9114, 9115, 9116, 9117]
 max_processes = 3
 

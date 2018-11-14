@@ -30,7 +30,9 @@ def getNumTrueVoxels(Y):
     return Y.sum(axis=tuple(range(1,Y.ndim)))
 
 def generateTrainingPeak(peak, box, Y3D, peakDict, UBMatrix, pRotation=0.5, rebinHKL=False, addNoise=False,
-                         maxOffset = 6, nVoxelsPerSide = 32):
+                         maxOffset = 6, nVoxelsPerSide = 32, peakThreshold = 0.025, qMask=None):
+    #qMask is only used for calculating max events
+                           
     n_events = box.getNumEventsArray()
     n_simulated = n_events.copy()
     Y_simulated = Y3D.copy()
@@ -159,10 +161,25 @@ def generateTrainingPeak(peak, box, Y3D, peakDict, UBMatrix, pRotation=0.5, rebi
         n_simulated = n_simulated[lowX:highX, lowY:highY, lowZ:highZ]
         Y_simulated = Y_simulated[lowX:highX, lowY:highY, lowZ:highZ]
         
+        peakIDX = Y_simulated/Y_simulated.max() > peakThreshold
+        if qMask is not None:
+            cX, cY, cZ = np.array(qMask.shape)//2
+            dX, dY, dZ = nVoxelsPerSide//2, nVoxelsPerSide//2, nVoxelsPerSide//2
+            qMask_simulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]       
+            peakDict['maxEvents'] = n_simulated[peakIDX].max()
+            peakDict['bgEvents'] = n_simulated[qMask_simulated & ~peakIDX].mean()
+        else:
+            peakDict['maxEvents_noQMask'] = n_simulated[peakIDX].max()
+            peakDict['bgEvents_noQMask'] = n_simulated[qMask_simulated & ~peakIDX].mean()        
+        
     #Add noise to the n_simulated
     if addNoise:
         #bgNoiseLevel = 10.#ICCFT.get_pp_lambda(n_simulated, n_simulated>0)[0]
-        bgNoiseLevel = n_simulated.max()
+        if qMask is not None:
+            bgNoiseLevel = n_simulated[peakIDX].max()
+        else:
+            bgNoiseLevel = n_simulated.max()
+            print('Warning! mltools::generateTrainingPeak has no qMask.  Might add a lot of noise!')
         pp_lambda = np.random.random()*bgNoiseLevel
         YNoise = np.random.poisson(lam=pp_lambda, size=n_simulated.shape)
         peakDict['noiseAdded'] = pp_lambda
