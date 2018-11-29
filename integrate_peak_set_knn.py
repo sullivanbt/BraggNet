@@ -92,14 +92,14 @@ runNumbers = df['RunNumber'].unique()
 
 #Generate the strong peaks library
 # First, the qMask
-qMask = pickle.load(open('/data/peaks_tf/qMask.pkl', 'rb'))
+qMask = pickle.load(open('/data/ml_peak_sets/peaks_tf/qMask.pkl', 'rb'))
 cX, cY, cZ = np.array(qMask.shape)//2
 dX, dY, dZ = nX//2, nY//2, nZ//2
 qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
 
 #---Load 'em
 #peaksDir = '/data/peaks_tf/train/'
-peaksDir = '/data/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff/train/'
+peaksDir = '/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/train/'
 peaksFiles = glob.glob(peaksDir+'*pkl')
 peaksLibrary = np.zeros([len(peaksFiles), np.sum(qMaskSimulated)])
 solutionLibrary = np.zeros([len(peaksFiles),32*32*32])
@@ -180,7 +180,7 @@ for runNumber in runNumbers:
                 #raise
                 print('Error with peak %i!'%peakToGet)
                
-    df.to_pickle('/home/ntv/Desktop/ml_results/knn_testing_%i.pkl'%runNumber)
+    df.to_pickle('/home/ntv/Desktop/ml_results/knn_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise_%i.pkl'%runNumber)
 
     
 

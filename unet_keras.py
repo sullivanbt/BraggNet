@@ -17,9 +17,9 @@ reload(mltools)
 
 #Initialization
 np.random.seed = 42
-#baseDirectory = '/data/peaks_tf_hklTesting/'
-baseDirectory = '/data/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_2/'
-#baseDirectory = '/data/peaks_tf_halfRot_strongOnly_allSets_limitedNoise/'
+
+#baseDirectory = '/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/'
+baseDirectory = '/data/dna_0p025_cutoff_0p5MaxNoise/'
 
 useQMask = True
 #=============================================================================================
@@ -32,7 +32,7 @@ reload(mltools)
 model = mltools.build_unet(doBatchNormalization=True)
 model.summary()
 shuffleIDX = np.random.permutation(len(X_train))
-model.fit(X_train[shuffleIDX], Y_train[shuffleIDX], epochs=90, validation_split=0.1)
+model.fit(X_train[shuffleIDX], Y_train[shuffleIDX], epochs=100, validation_split=0.1)
 
 #=============================================================================================
 # Do some quick evaluation

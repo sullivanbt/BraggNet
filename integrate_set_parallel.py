@@ -7,9 +7,17 @@ import pickle
 
 
 python = 'python'
-#reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_hkl.py'
-reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_knn.py'
+
+#Ser70Ala Beta lac
+reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_hkl.py'
+#reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_knn.py'
 run_nums = [9113, 9114, 9115, 9116, 9117]
+
+#Z-DNA 2018
+reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_dna.py'
+run_nums = range(9291,9304+1)
+
+
 max_processes = 3
 
 #Define a class for threading (taken from ReduceSCD_Parallel.py) and set up parallel runs

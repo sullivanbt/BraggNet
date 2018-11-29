@@ -66,7 +66,7 @@ if importPeaks:
 
 
 #baseDirectory = '/data/peaks_tf_halfRot_strongOnly_allSets_limitedNoise/'
-baseDirectory = '/data/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_2/'
+baseDirectory = '/data/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/'
 
 
 if len(sys.argv) == 1:
@@ -184,7 +184,7 @@ for runNumber in runNumbersToAdd:
             reload(mltools)     
             n_simulated, Y_simulated, peakDict = mltools.generateTrainingPeak(peak, box, Y3D, peakDict, 
                                                  UBMatrix, rebinHKL=False, addNoise=True, peakThreshold=peakThreshold,
-                                                 qMask=qMask)
+                                                 qMask=qMask, noiseScaleFactor=0.5)
 
             peakIDX = Y_simulated/Y_simulated.max() > peakThreshold;
             

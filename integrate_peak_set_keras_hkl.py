@@ -14,13 +14,11 @@ from timeit import default_timer as timer
 import sys
 import pandas as pd
 from tqdm import tqdm
-
 import tensorflow as tf
 from keras.backend.tensorflow_backend import set_session
 config = tf.ConfigProto()
 config.gpu_options.per_process_gpu_memory_fraction = 0.15
 set_session(tf.Session(config=config))
-
 from keras.models import Model, load_model, save_model
 import mltools
 
@@ -37,6 +35,7 @@ else:
 from mantid.simpleapi import *
 import ICCFitTools as ICCFT
 
+
 np.random.seed = 42
 nX = 32
 nY = 32
@@ -49,7 +48,7 @@ nChannels = 1
 #trainedOnHKL = False; thresh=0.15
 #model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_relu_halfrot_allruns_limitNoise_hklFull.h5'
 #trainedOnHKL = True; thresh=0.15
-model_file = '/home/ntv/ml_peak_integration/models/model_mltools_halfRot_strongOnly_allSets_limitedNoise_bigger_withbn_0p025Cutoff.h5'
+model_file = '/home/ntv/ml_peak_integration/models/model_mltools_halfRot_strongOnly_allSets_limitedNoise_bigger_withbn_0p5noise_100epochs_13.h5'
 trainedOnHKL = False; thresh=0.15
 model = load_model(model_file, custom_objects={'bce_dice_loss':mltools.bce_dice_loss, 'dice_coeff':mltools.dice_coeff, 
                                                'dice_loss':mltools.dice_loss, 'mean_iou':mltools.mean_iou})
@@ -94,7 +93,7 @@ if len(sys.argv) == 1:
 else:
     runNumbers = map(int,sys.argv[1:])
 print('Integrating run numbers:', runNumbers)
-qMask = pickle.load(open('/data/peaks_tf/qMask.pkl', 'rb'))
+qMask = pickle.load(open('/data/ml_peak_sets/peaks_tf/qMask.pkl', 'rb'))
 cX, cY, cZ = np.array(qMask.shape)//2
 dX, dY, dZ = nX//2, nY//2, nZ//2
 qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
@@ -155,7 +154,7 @@ for runNumber in runNumbers:
                 print('Error with peak %i!'%peakToGet)
                
     #df.to_pickle('/home/ntv/Desktop/ml_results/unet_testing_%i_relu_halfrot_strongOnly_0p5dropout_withmltools_noEdgeDetection.pkl'%runNumber)
-    df.to_pickle('/home/ntv/Desktop/ml_results/mltools_halfRot_strongOnly_allSets_limitedNoise_%i_bigger_withbn_0p025Cutoff.pkl'%runNumber)
+    df.to_pickle('/home/ntv/Desktop/ml_results/mltools_halfRot_strongOnly_allSets_limitedNoise_%i_bigger_withbn_0p5noise_100epochs_13.pkl'%runNumber)
 
     
 

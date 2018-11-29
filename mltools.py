@@ -30,7 +30,7 @@ def getNumTrueVoxels(Y):
     return Y.sum(axis=tuple(range(1,Y.ndim)))
 
 def generateTrainingPeak(peak, box, Y3D, peakDict, UBMatrix, pRotation=0.5, rebinHKL=False, addNoise=False,
-                         maxOffset = 6, nVoxelsPerSide = 32, peakThreshold = 0.025, qMask=None):
+                         maxOffset = 6, nVoxelsPerSide = 32, peakThreshold = 0.025, qMask=None, noiseScaleFactor=1.0):
     #qMask is only used for calculating max events
                            
     n_events = box.getNumEventsArray()
@@ -176,9 +176,9 @@ def generateTrainingPeak(peak, box, Y3D, peakDict, UBMatrix, pRotation=0.5, rebi
     if addNoise:
         #bgNoiseLevel = 10.#ICCFT.get_pp_lambda(n_simulated, n_simulated>0)[0]
         if qMask is not None:
-            bgNoiseLevel = n_simulated[peakIDX].max()
+            bgNoiseLevel = n_simulated[peakIDX].max()*noiseScaleFactor
         else:
-            bgNoiseLevel = n_simulated.max()
+            bgNoiseLevel = n_simulated.max()*noiseScaleFactor
             print('Warning! mltools::generateTrainingPeak has no qMask.  Might add a lot of noise!')
         pp_lambda = np.random.random()*bgNoiseLevel
         YNoise = np.random.poisson(lam=pp_lambda, size=n_simulated.shape)
@@ -334,7 +334,7 @@ def readDataForTraining(baseDirectory, nX=32, nY=32, nZ=32, nChannels=1, useQMas
     TEST_PATH  = baseDirectory+'test/'
     #Set up the qMask
     if useQMask:
-        qMask = pickle.load(open('/data/peaks_tf/qMask.pkl', 'rb'))
+        qMask = pickle.load(open(baseDirectory+'qMask.pkl', 'rb'))
         cX, cY, cZ = np.array(qMask.shape)//2
         dX, dY, dZ = nX//2, nY//2, nZ//2
         qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
@@ -439,8 +439,8 @@ def build_unet(nX=32, nY=32, nZ=32, nChannels=1, activationName = 'relu', dropou
 
     from keras.optimizers import Adam
     #adamaba = Adam(lr=0.001, beta_1=0.9, beta_2=0.999) #Default
-    adamaba = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999)
-    model.compile(optimizer=adamaba, loss=dice_loss, metrics=[dice_coeff, mean_iou])
+    travis = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999)
+    model.compile(optimizer=travis, loss=dice_loss, metrics=[dice_coeff, mean_iou])
     
     return model
 
