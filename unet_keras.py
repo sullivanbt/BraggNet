@@ -16,7 +16,7 @@ import mltools
 reload(mltools)
 
 #Initialization
-np.random.seed = 42
+np.random.seed(42)
 
 #baseDirectory = '/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/'
 baseDirectory = '/data/dna_0p025_cutoff_0p5MaxNoise/'

@@ -18,7 +18,7 @@ reload(mltools)
 #model_file = 'model_keras.h5' #First pass
 #model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_andEmpties.h5'
 model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_selu_halfrot.h5'
-model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_relu_halfrot_allruns_limitNoise_hklSmallSet.h5'
+model_file = '/home/ntv/ml_peak_integration/models/model_mltools_halfRot_strongOnly_allSets_limitedNoise_bigger_withbn_0p5noise_100epochs_2.h5'
 trainedOnHKL = False
 if not model:
     print('Loading model from %s'%model_file)
@@ -47,7 +47,7 @@ dQ = np.abs(ICCFT.getDQFracHKL(UBMatrix, frac=0.5))
 dQ[dQ>0.2]=0.2
 
 nX = 32; nY = 32; nZ = 32
-qMask = pickle.load(open('/data/peaks_tf/qMask.pkl', 'rb'))
+qMask = pickle.load(open('/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/qMask.pkl', 'rb'))
 cX, cY, cZ = np.array(qMask.shape)//2
 dX, dY, dZ = nX//2, nY//2, nZ//2
 qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
