@@ -19,7 +19,9 @@ reload(mltools)
 np.random.seed(42)
 
 #baseDirectory = '/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/'
-baseDirectory = '/data/dna_0p025_cutoff_0p5MaxNoise/'
+#baseDirectory = '/data/dna_0p025_cutoff_0p5MaxNoise/'
+#baseDirectory = '/data/ml_peak_sets/beta_lac_firstxtal/'
+baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask/'
 
 useQMask = True
 #=============================================================================================
@@ -44,10 +46,21 @@ dcImTest = mltools.diceCoeffPerImage(Y_test.squeeze(), bulkMasksTest.squeeze())
 dcList = np.append(dcIm, dcImTest)
 iouIm = mltools.iouPerImage(Y_train.squeeze(), bulkMasksTrain.squeeze(), thresh=thresh)
 iouImTest = mltools.iouPerImage(Y_test.squeeze(), bulkMasksTest.squeeze(), thresh=thresh)
-dfSim = pd.DataFrame(pickle.load(open(baseDirectory+'simulated_peak_params.pkl')))
-dfSim['dcIm'] = dcList 
-dfSim['IoU'] = np.append(iouIm, iouImTest)
+try:
+    dfSim = pd.DataFrame(pickle.load(open(baseDirectory+'simulated_peak_params.pkl')))
+    dfSim['dcIm'] = dcList 
+    dfSim['IoU'] = np.append(iouIm, iouImTest)
+except:
+    print 'unet_keras::Training data were generated in parallel.  Need to work out how to create dfSim'
 
+#=============================================================================================
+# Save the history
+hist = model.history.history
+plt.figure(12)
+plt.clf()
+for key in np.sort(hist.keys()):
+    plt.plot(hist[key], label=key)
+plt.legend(loc='best')
 #=============================================================================================
 '''
 # Show some results
@@ -57,4 +70,10 @@ X_disp = X_test[ix].squeeze()
 Y_disp = bulkMasksTest[ix].squeeze()
 pySlice.simpleSlices(X_disp, Y_disp/Y_disp.max()*n_events.max())
 '''
+
+ix = np.random.randint(0, len(X_train) - 1)
+n_events = np.array(X_train[ix]).squeeze()
+X_disp = X_train[ix].squeeze()
+Y_disp = Y_train[ix].squeeze()
+pySlice.simpleSlices(X_disp, Y_disp/Y_disp.max()*n_events.max())
 

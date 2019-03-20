@@ -17,14 +17,16 @@ reload(mltools)
 #Do some initial stuff for tensorflow
 #model_file = 'model_keras.h5' #First pass
 #model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_andEmpties.h5'
-model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_selu_halfrot.h5'
-model_file = '/home/ntv/ml_peak_integration/models/model_mltools_halfRot_strongOnly_allSets_limitedNoise_bigger_withbn_0p5noise_100epochs_2.h5'
+#model_file = '/home/ntv/ml_peak_integration/models/model_withQMask_fromdfpeaks_selu_halfrot.h5'
+#model_file = '/home/ntv/ml_peak_integration/models/model_mltools_halfRot_strongOnly_allSets_limitedNoise_bigger_withbn_0p5noise_100epochs_2.h5'
+model_file = '/home/ntv/ml_peak_integration/models/beta_lac_firstxtal_4.h5'
 trainedOnHKL = False
-if not model:
+if model is None:
     print('Loading model from %s'%model_file)
     model = load_model(model_file, custom_objects={'bce_dice_loss':mltools.bce_dice_loss, 'dice_coeff':mltools.dice_coeff, 
                                                'dice_loss':mltools.dice_loss, 'mean_iou':mltools.mean_iou})
 
+"""
 #beta lac july 2018 second xtal
 peaksFile = '/home/ntv/mandi_preprocessing/beta_lac_july2018/beta_lac_july2018_secondxtal.integrate'
 UBFile = '/home/ntv/mandi_preprocessing/beta_lac_july2018/beta_lac_july2018_secondxtal.mat'
@@ -33,7 +35,15 @@ workDir = '/SNS/users/ntv/dropbox/' #End with '/'
 nxsTemplate = '/SNS/MANDI/IPTS-8776/nexus/MANDI_%i.nxs.h5'
 dQPixel=0.003
 q_frame = 'lab'
-
+"""
+#beta lac july 2018 first xtal
+peaksFile = '/home/ntv/Desktop/beta_lac_firstxtal_july18beamtime_pf.integrate'
+UBFile = '/home/ntv/Desktop/beta_lac_firstxtal_july18beamtime_pf.mat'
+DetCalFile = '/home/ntv/mandi_preprocessing/MANDI_June2018.DetCal'
+nxsTemplate = '/SNS/MANDI/IPTS-21326/nexus/MANDI_%i.nxs.h5'
+dQPixel=0.003
+q_frame = 'lab'
+baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask/'
 # Some parameters
 try:
     print('Which peak? (Current is %i)'%peakToGet)
@@ -46,15 +56,20 @@ UBMatrix = peaks_ws.sample().getOrientedLattice().getUB()
 dQ = np.abs(ICCFT.getDQFracHKL(UBMatrix, frac=0.5))
 dQ[dQ>0.2]=0.2
 
+dQ = np.abs(ICCFT.getDQFracHKL(UBMatrix, frac=0.5))
+dQ[0,:] = 0.05088
+dQ[dQ>0.2]=0.2
+
 nX = 32; nY = 32; nZ = 32
-qMask = pickle.load(open('/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/qMask.pkl', 'rb'))
+#qMask = pickle.load(open('/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/qMask.pkl', 'rb'))
+qMask = pickle.load(open(baseDirectory+'qMask.pkl', 'rb'))
 cX, cY, cZ = np.array(qMask.shape)//2
 dX, dY, dZ = nX//2, nY//2, nZ//2
 qMaskSimulated = qMask[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
 
 peak = peaks_ws.getPeak(peakToGet)
 
-MDdata = mltools.getMDData(peak, nxsTemplate, DetCalFile, workDir, q_frame)    
+MDdata = mltools.getMDData(peak, nxsTemplate, DetCalFile, None, q_frame)
 box = ICCFT.getBoxFracHKL(peak, peaks_ws, MDdata, UBMatrix, peakToGet, dQ, fracHKL=0.5, dQPixel=dQPixel,  q_frame=q_frame);
 n_events_cropped, image = mltools.getImageFromBox(box, UBMatrix, peak, rebinToHKL=trainedOnHKL, qMaskSimulated=qMaskSimulated)
 peakMask, testim, blobs = mltools.getPeakMask(image, model,  thresh=0.15)

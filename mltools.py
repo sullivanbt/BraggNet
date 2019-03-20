@@ -328,7 +328,7 @@ def reconstructY3D(box, df, peak, peakToGet):
     Y3D = YBVG*YTOF/YBVG.max()/YTOF.max()*float(df[goodEntry]['scale3d'])
     return Y3D
 
-def readDataForTraining(baseDirectory, nX=32, nY=32, nZ=32, nChannels=1, useQMask=False):
+def readDataForTraining(baseDirectory, nX=32, nY=32, nZ=32, nChannels=1, useQMask=False, maxNumPeaksTrain=None):
     #Figure out which files to read
     TRAIN_PATH = baseDirectory+'train/'
     TEST_PATH  = baseDirectory+'test/'
@@ -343,6 +343,16 @@ def readDataForTraining(baseDirectory, nX=32, nY=32, nZ=32, nChannels=1, useQMas
     train_ids = next(os.walk(TRAIN_PATH))[2]
     test_ids = next(os.walk(TEST_PATH))[2]
     
+    if maxNumPeaksTrain is not None:
+        numTrain = len(train_ids)
+        numTest =  len(test_ids)
+        fracToKeep = 1.0*maxNumPeaksTrain/numTrain
+        if fracToKeep < 1.:
+            numTrainToKeep = fracToKeep*numTrain
+            numTestToKeep = fracToKeep*numTest
+            train_ids = np.random.choice(np.array(train_ids), int(numTrainToKeep))
+            test_ids = np.random.choice(np.array(test_ids), int(numTestToKeep))
+ 
     #=============================================================================================
     # Get and resize train images and masks
     images = np.zeros((len(train_ids), nX, nY, nZ,nChannels), dtype=np.float32)
@@ -439,7 +449,7 @@ def build_unet(nX=32, nY=32, nZ=32, nChannels=1, activationName = 'relu', dropou
 
     from keras.optimizers import Adam
     #adamaba = Adam(lr=0.001, beta_1=0.9, beta_2=0.999) #Default
-    travis = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999)
+    travis = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999) #Used for first submission, IucrJ 2019
     model.compile(optimizer=travis, loss=dice_loss, metrics=[dice_coeff, mean_iou])
     
     return model
