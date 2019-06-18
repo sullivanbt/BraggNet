@@ -1,3 +1,6 @@
+import time
+time.sleep(7200)
+
 import os
 import sys
 import numpy as np
@@ -15,32 +18,53 @@ from keras.models import Model, load_model, save_model
 import mltools
 reload(mltools)
 
+
+
 #Initialization
 np.random.seed(42)
 
 #baseDirectory = '/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/'
 #baseDirectory = '/data/dna_0p025_cutoff_0p5MaxNoise/'
 #baseDirectory = '/data/ml_peak_sets/beta_lac_firstxtal/'
-baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask_0p15peakThreshold_folded/'
-
+#baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask/'
+#baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask_0p15peakThreshold/'
+baseDirectory = '/data/dna_0p025_cutoff_0p5MaxNoise_pfCutoff/'
 useQMask = True
 #=============================================================================================
 #Read the training data in
 X_train, Y_train, X_test, Y_test = mltools.readDataForTraining(baseDirectory, useQMask=useQMask)
+"""
+baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask_0p15peakThreshold/'
+X_train_1, Y_train_1, X_test_1, Y_test_1 = mltools.readDataForTraining(baseDirectory, useQMask=useQMask, maxNumPeaksTrain=5000)
+baseDirectory = '/data/ml_peak_sets/beta_lac_firstxtal/'
+X_train_2, Y_train_2, X_test_2, Y_test_2 = mltools.readDataForTraining(baseDirectory, useQMask=useQMask, maxNumPeaksTrain=5000)
+X_train = np.append(X_train_1, X_train_2,axis=0)
+Y_train = np.append(Y_train_1, Y_train_2,axis=0)
+X_test = np.append(X_test_1, X_test_2,axis=0)
+Y_test = np.append(Y_test_1, Y_test_2,axis=0)
+"""
+for i in range(1,12+1):
+    print 'Training model {}'.format(i)
+    #=============================================================================================
+    #Setup the Unet in Keras using TF backend
+    reload(mltools)
+    model = mltools.build_unet(doBatchNormalization=True)
+    model.summary()
+    shuffleIDX = np.random.permutation(len(X_train))
+    model.fit(X_train[shuffleIDX], Y_train[shuffleIDX], epochs=100, validation_split=0.1)
 
-#Clean any NaNs we got from folding
-nanIDX = np.where(np.isnan(X_train).sum(axis=(1,2,3,4)) > 0)[0]
-X_train[nanIDX] = 0.
-Y_train[nanIDX] = False
+    #=============================================================================================
+    # Save the history
+    hist = model.history.history
+    plt.figure(12)
+    plt.clf()
+    for key in np.sort(hist.keys()):
+        plt.plot(hist[key], label=key)
+    plt.legend(loc='best')
 
-#=============================================================================================
-#Setup the Unet in Keras using TF backend
-reload(mltools)
-model = mltools.build_unet(doBatchNormalization=True)
-model.summary()
-shuffleIDX = np.random.permutation(len(X_train))
-model.fit(X_train[shuffleIDX], Y_train[shuffleIDX], epochs=100, validation_split=0.1)
-
+    model.save('/home/ntv/ml_peak_integration/models/dna_{}.h5'.format(i))
+    pickle.dump(shuffleIDX, open('/home/ntv/ml_peak_integration/models/dna_{}_shuffleIDX.pkl'.format(i),'wb'))
+    pickle.dump(hist, open('/home/ntv/ml_peak_integration/models/dna_{}_hist.pkl'.format(i),'wb'))
 #=============================================================================================
 # Do some quick evaluation
 thresh = 0.4
@@ -53,19 +77,11 @@ iouIm = mltools.iouPerImage(Y_train.squeeze(), bulkMasksTrain.squeeze(), thresh=
 iouImTest = mltools.iouPerImage(Y_test.squeeze(), bulkMasksTest.squeeze(), thresh=thresh)
 try:
     dfSim = pd.DataFrame(pickle.load(open(baseDirectory+'simulated_peak_params.pkl')))
-    dfSim['dcIm'] = dcList 
+    dfSim['dcIm'] = dcList
     dfSim['IoU'] = np.append(iouIm, iouImTest)
 except:
     print 'unet_keras::Training data were generated in parallel.  Need to work out how to create dfSim'
 
-#=============================================================================================
-# Save the history
-hist = model.history.history
-plt.figure(12)
-plt.clf()
-for key in np.sort(hist.keys()):
-    plt.plot(hist[key], label=key)
-plt.legend(loc='best')
 #=============================================================================================
 '''
 # Show some results

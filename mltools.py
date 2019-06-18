@@ -33,7 +33,7 @@ def generateTrainingPeak(peak, box, Y3D, peakDict, UBMatrix, pRotation=0.5, rebi
                          maxOffset = 6, nVoxelsPerSide = 32, peakThreshold = 0.025, qMask=None, noiseScaleFactor=1.0):
     #qMask is only used for calculating max events
                            
-    n_events = box.getNumEventsArray()
+    n_events = box.getSignalArray()
     n_simulated = n_events.copy()
     Y_simulated = Y3D.copy()
     #Rotate the peak
@@ -251,9 +251,12 @@ def makeShowPredictedPeakFigure(image, peakMask, peakToGet, figNumber=182):
     plt.imshow(peakMask[:,:,z0-dZ:z0+dZ].astype(int).sum(axis=2))
     plt.suptitle('Peak %i'%peakToGet)
 
-def getImageFromBox(box, UBMatrix,peak, qMaskSimulated=None, rebinToHKL=False, nVoxelsPerSide=32, hklRebinFrac=0.8):
-    n_events = box.getNumEventsArray();
+def getImageFromBox(box, UBMatrix,peak, qMaskSimulated=None, rebinToHKL=False, nVoxelsPerSide=32, hklRebinFrac=0.8, returnErrorSq=False):
+    n_events = box.getSignalArray();
+    n_errorsq = box.getErrorSquaredArray()
     if rebinToHKL:
+        if returnErrorSq:
+            UserWarning('mltools - Cannot return error squared array in hkl rebin mode!')
         R = peak.getGoniometerMatrix()
         T = np.linalg.inv(R.dot(UBMatrix))/2/np.pi
         QX, QY, QZ = ICCFT.getQXQYQZ(box)
@@ -280,17 +283,37 @@ def getImageFromBox(box, UBMatrix,peak, qMaskSimulated=None, rebinToHKL=False, n
         cX, cY, cZ = np.array(n_events.shape)//2
         dX, dY, dZ = nVoxelsPerSide//2,nVoxelsPerSide//2,nVoxelsPerSide//2
         image = n_events[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ] #crop
+        image_error = n_errorsq[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ] #crop
         if qMaskSimulated is not None:
             image = image*qMaskSimulated
+            image_error = image_error*qMaskSimulated
         n_events_cropped = n_events[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
+        n_errorsq_cropped = n_errorsq[cX-dX:cX+dX, cY-dY:cY+dY, cZ-dZ:cZ+dZ]
+        #finiteImage = np.isfinite(image)
+        #finiteInMask = np.logical_and(qMaskSimulated, finiteImage)
+        cb = np.ones([3,3,3])
+        cb[1,1,1] = 0.
+        ccc = convolve(image, cb)
+        image[~np.isfinite(ccc)] = 0.
+        if qMaskSimulated is not None:
+            image *= qMaskSimulated
         image = image / image.max()
         if qMaskSimulated is not None:
             image = (image-np.mean(image[qMaskSimulated]))/np.std(image[qMaskSimulated])
         else:
             image = (image-np.mean(image))/np.std(image)
+
+        """
+        #image = image / image[qMaskSimulated].max()
+        if qMaskSimulated is not None:
+            image = (image-np.mean(image[qMaskSimulated]))/np.std(image[qMaskSimulated])
+        else:
+            image = (image-np.mean(image))/np.std(image)
+        """
         image = np.expand_dims(image, axis=3) 
         image = np.expand_dims(image, axis=0) #1*nX*nY*nZ*1    
-
+    if returnErrorSq:
+        return n_events_cropped, n_errorsq_cropped, image
     return n_events_cropped, image
 
 
@@ -328,7 +351,7 @@ def reconstructY3D(box, df, peak, peakToGet):
     Y3D = YBVG*YTOF/YBVG.max()/YTOF.max()*float(df[goodEntry]['scale3d'])
     return Y3D
 
-def readDataForTraining(baseDirectory, nX=32, nY=32, nZ=32, nChannels=1, useQMask=False):
+def readDataForTraining(baseDirectory, nX=32, nY=32, nZ=32, nChannels=1, useQMask=False, maxNumPeaksTrain=None):
     #Figure out which files to read
     TRAIN_PATH = baseDirectory+'train/'
     TEST_PATH  = baseDirectory+'test/'
@@ -343,6 +366,16 @@ def readDataForTraining(baseDirectory, nX=32, nY=32, nZ=32, nChannels=1, useQMas
     train_ids = next(os.walk(TRAIN_PATH))[2]
     test_ids = next(os.walk(TEST_PATH))[2]
     
+    if maxNumPeaksTrain is not None:
+        numTrain = len(train_ids)
+        numTest =  len(test_ids)
+        fracToKeep = 1.0*maxNumPeaksTrain/numTrain
+        if fracToKeep < 1.:
+            numTrainToKeep = fracToKeep*numTrain
+            numTestToKeep = fracToKeep*numTest
+            train_ids = np.random.choice(np.array(train_ids), int(numTrainToKeep))
+            test_ids = np.random.choice(np.array(test_ids), int(numTestToKeep))
+ 
     #=============================================================================================
     # Get and resize train images and masks
     images = np.zeros((len(train_ids), nX, nY, nZ,nChannels), dtype=np.float32)
@@ -439,7 +472,7 @@ def build_unet(nX=32, nY=32, nZ=32, nChannels=1, activationName = 'relu', dropou
 
     from keras.optimizers import Adam
     #adamaba = Adam(lr=0.001, beta_1=0.9, beta_2=0.999) #Default
-    travis = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999)
+    travis = Adam(lr=0.0005, beta_1=0.9, beta_2=0.999) #Used for first submission, IucrJ 2019
     model.compile(optimizer=travis, loss=dice_loss, metrics=[dice_coeff, mean_iou])
     
     return model

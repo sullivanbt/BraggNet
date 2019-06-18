@@ -816,7 +816,7 @@ def getBoxFracHKL(peak, peaks_ws, MDdata, UBMatrix, peakNumber, dQ, dQPixel=0.00
     dQ[dQ > 0.5] = 0.5
     nPtsQ = np.round(np.sum(dQ/dQPixel, axis=1)).astype(int)
 
-    Box = BinMD(InputWorkspace='MDdata',
+    Box = BinMD(InputWorkspace=MDdata,
                 AlignedDim0='Q_%s_x,' % q_frame +
                 str(Qx-dQ[0, 0])+','+str(Qx+dQ[0, 1])+','+str(nPtsQ[0]),
                 AlignedDim1='Q_%s_y,' % q_frame +

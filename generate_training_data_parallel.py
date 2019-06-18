@@ -6,32 +6,24 @@ import time
 import pickle
 
 
-python = 'python'
-
+python = '/home/ntv/workspace/mantid/release/bin/mantidpython'
 """
-#Ser70Ala Beta lac
-#reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_hkl.py'
-#reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_knn.py'
-reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_betalac_secondcrystal.py'
+# Beta lac second xtal july 2018
+reduce_one_run_script = '/home/ntv/ml_peak_integration/generate_training_data_v2_betalacsecondxtal.py'
 run_nums = [9113, 9114, 9115, 9116, 9117]
+max_processes = 3
 """
+reduce_one_run_script = '/home/ntv/ml_peak_integration/generate_training_data_v2_dna.py'
+run_nums = range(9291, 9304+1)
+max_processes = 3
 
-#NaK 2019
-reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_nak_2019.py'
-run_nums = range(9382,9390+1)
-"""
-#Z-DNA 2018
-reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_dna.py'
-run_nums = range(9291,9304+1)
-"""
 
 """
-#E166Q beta lac july 2018 (first xtal)
-reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_betalac_firstcrystal.py'
+# beta lac first xtal july 2018
+reduce_one_run_script = '/home/ntv/ml_peak_integration/generate_training_data_v2_betalacfirstxtal.py'
 run_nums = [9078, 9079, 9080, 9082, 9083, 9084]
+max_processes = 6
 """
-
-max_processes = 5
 
 #Define a class for threading (taken from ReduceSCD_Parallel.py) and set up parallel runs
 class ProcessThread ( threading.Thread ):
