@@ -16,11 +16,14 @@ reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_
 run_nums = [9113, 9114, 9115, 9116, 9117]
 """
 
-
+#NaK 2019
+reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_nak_2019.py'
+run_nums = range(9382,9390+1)
+"""
 #Z-DNA 2018
 reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_dna.py'
 run_nums = range(9291,9304+1)
-
+"""
 
 """
 #E166Q beta lac july 2018 (first xtal)
@@ -28,7 +31,7 @@ reduce_one_run_script = '/home/ntv/ml_peak_integration/integrate_peak_set_keras_
 run_nums = [9078, 9079, 9080, 9082, 9083, 9084]
 """
 
-max_processes = 3
+max_processes = 5
 
 #Define a class for threading (taken from ReduceSCD_Parallel.py) and set up parallel runs
 class ProcessThread ( threading.Thread ):

@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 #remove the original mantid path
 
@@ -221,6 +222,9 @@ for runNumber in runNumbersToAdd:
                 pickle.dump(n_simulated, open(baseDirectory+'test/%i.pkl'%peakToGet,'wb'));
                 pickle.dump(peakIDX,  open(baseDirectory+'test_solution/%i.pkl'%peakToGet,'wb'));
 
+            if fitNumber > 50:
+                print("Fitting is done with first 50!")
+                sys.exit(1)
         except KeyboardInterrupt:
             raise
         except:

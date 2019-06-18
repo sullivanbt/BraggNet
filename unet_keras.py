@@ -21,12 +21,17 @@ np.random.seed(42)
 #baseDirectory = '/data/ml_peak_sets/peaks_tf_mltoolstest_limitedNoise_0p025_cutoff_0p5MaxNoise/'
 #baseDirectory = '/data/dna_0p025_cutoff_0p5MaxNoise/'
 #baseDirectory = '/data/ml_peak_sets/beta_lac_firstxtal/'
-baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask/'
+baseDirectory = '/data/ml_peak_sets/beta_lac_secondcrystal_0p4qMask_0p15peakThreshold_folded/'
 
 useQMask = True
 #=============================================================================================
 #Read the training data in
 X_train, Y_train, X_test, Y_test = mltools.readDataForTraining(baseDirectory, useQMask=useQMask)
+
+#Clean any NaNs we got from folding
+nanIDX = np.where(np.isnan(X_train).sum(axis=(1,2,3,4)) > 0)[0]
+X_train[nanIDX] = 0.
+Y_train[nanIDX] = False
 
 #=============================================================================================
 #Setup the Unet in Keras using TF backend
